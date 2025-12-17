@@ -228,12 +228,6 @@ function workspaceHTML(b) {
       : "<div class='batch-sub'>No vehicles assigned</div>"
     }
 
-    ${locked ? `
-      <div class="note" style="background:#7c2d12;color:#fee2e2;margin-top:10px;">
-        RESTRICTED: Pickup email already sent. Vehicle changes are disabled.
-      </div>
-    ` : ""}
-
     <hr style="border-color:#1f2937;margin:10px 0">
 
     <h4>Passenger Allocation</h4>
@@ -295,9 +289,7 @@ function toggleWorkspace(batchId) {
     el.innerHTML = "";
   });
 
-  if (isOpen) {
-    return;
-  }
+  if (isOpen) return;
 
   ws.classList.add("open");
   ws.innerHTML = "<div class='batch-sub'>Loading data…</div>";
@@ -312,15 +304,8 @@ function toggleWorkspace(batchId) {
     allocationCache[batchId]
       ? Promise.resolve(allocationCache[batchId])
       : fetch(API + "?action=allocations&batchId=" + encodeURIComponent(batchId))
-  .then(r => r.json())
-  .then(d => {
-    if (d.error) throw new Error(d.error);
-    allocationCache[batchId] = d;
-  })
-  .catch(() => {
-    allocationCache[batchId] = [];
-  })
-
+          .then(r => r.json())
+          .then(d => (allocationCache[batchId] = d))
   ])
   .then(() => {
     ws.innerHTML = workspaceHTML(
