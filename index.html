@@ -143,12 +143,12 @@ button {
 </div>
 
 <script>
-const API = "https://script.google.com/macros/s/AKfycbxf3ipSa14vMrlpCukqPkWgLtcVVEAUBhTe0FOnknSz2cx1cOsouOPOo3rA6psI4K5f/exec";
+const API = "https://script.google.com/macros/s/AKfycbxf39Vg7FooQthJa3hENqAdudoOb1JJJZCdAFToQBmOzmZTgfPiZnI7JdR5EdwjYq4_/exec";
 
 let batches = [];
 let vehicles = [];
 let assignmentsCache = {};
-
+let allocationCache = {};
 /* ---------- INITIAL LOAD ---------- */
 Promise.all([
   fetch(API + "?action=batches").then(r => r.json()),
@@ -212,6 +212,7 @@ function workspaceHTML(b) {
   const assigns = (assignmentsCache[b.batchId] || [])
     .filter(a => a.status === "ACTIVE");
 
+  const allocs = allocationCache[b.batchId] || [];
   const locked = b.status === "SENT";
 
   return `
@@ -232,6 +233,20 @@ function workspaceHTML(b) {
         RESTRICTED: Pickup email already sent. Vehicle changes are disabled.
       </div>
     ` : ""}
+
+    <hr style="border-color:#1f2937;margin:10px 0">
+
+    <h4>Passenger Allocation</h4>
+
+    ${allocs.length
+      ? allocs.map(a => `
+        <div class="batch-sub">
+          👤 ${a.email} (${a.pax} pax) →
+          🚐 ${a.vehicleClass} ${a.vehicleNo || ""}
+        </div>
+      `).join("")
+      : "<div class='batch-sub'>No passengers allocated yet</div>"
+    }
 
     <hr style="border-color:#1f2937;margin:10px 0">
 
@@ -258,7 +273,7 @@ function workspaceHTML(b) {
       <input type="time" id="pt-${b.batchId}">
 
       <div class="actions">
-        <button class="btn" onclick="save('${b.batchId}')">
+        <button class="btn" onclick="save('${b.batchId}', this)">
           Save Assignment
         </button>
       </div>
@@ -275,46 +290,60 @@ function toggleWorkspace(batchId) {
   const ws = document.getElementById(`ws-${batchId}`);
   const isOpen = ws.classList.contains("open");
 
-  // Close all other workspaces (optional but clean UX)
   document.querySelectorAll(".workspace.open").forEach(el => {
     el.classList.remove("open");
     el.innerHTML = "";
   });
 
   if (isOpen) {
-    ws.classList.remove("open");
-    ws.innerHTML = "";
     return;
   }
 
   ws.classList.add("open");
+  ws.innerHTML = "<div class='batch-sub'>Loading data…</div>";
 
-  // Lazy load assignments
-  if (!assignmentsCache[batchId]) {
-    ws.innerHTML = "<div class='batch-sub'>Loading assignments…</div>";
+  Promise.all([
+    assignmentsCache[batchId]
+      ? Promise.resolve(assignmentsCache[batchId])
+      : fetch(API + "?action=assignments&batchId=" + encodeURIComponent(batchId))
+          .then(r => r.json())
+          .then(d => (assignmentsCache[batchId] = d)),
 
-    fetch(API + "?action=assignments&batchId=" + encodeURIComponent(batchId))
-      .then(r => r.json())
-      .then(data => {
-        assignmentsCache[batchId] = data;
-        ws.innerHTML = workspaceHTML(
-          batches.find(b => b.batchId === batchId)
-        );
-      })
-      .catch(() => {
-        ws.innerHTML = "<div class='batch-sub'>Failed to load assignments</div>";
-      });
-  } else {
+    allocationCache[batchId]
+      ? Promise.resolve(allocationCache[batchId])
+      : fetch(API + "?action=allocations&batchId=" + encodeURIComponent(batchId))
+  .then(r => r.json())
+  .then(d => {
+    if (d.error) throw new Error(d.error);
+    allocationCache[batchId] = d;
+  })
+  .catch(() => {
+    allocationCache[batchId] = [];
+  })
+
+  ])
+  .then(() => {
     ws.innerHTML = workspaceHTML(
       batches.find(b => b.batchId === batchId)
     );
-  }
+  })
+  .catch(err => {
+    console.error(err);
+    ws.innerHTML = "<div class='batch-sub'>Failed to load batch data</div>";
+  });
 }
 
 /* ---------- SAVE ASSIGNMENT ---------- */
-function save(batchId) {
+function save(batchId, btn) {
+  btn.disabled = true;
+  btn.innerText = "Saving…";
+
   const vc = document.getElementById(`vc-${batchId}`).value;
-  if (!vc) return alert("Select vehicle class");
+  if (!vc) {
+    btn.disabled = false;
+    btn.innerText = "Save Assignment";
+    return alert("Select vehicle class");
+  }
 
   const params = new URLSearchParams({
     action: "addAssignment",
@@ -332,27 +361,34 @@ function save(batchId) {
     .then(res => {
       if (res.error) throw new Error(res.error);
 
-      // Invalidate cache & reload
       assignmentsCache[batchId] = null;
+      allocationCache[batchId] = null;
 
       return Promise.all([
         fetch(API + "?action=assignments&batchId=" + batchId).then(r => r.json()),
+        fetch(API + "?action=allocations&batchId=" + batchId).then(r => r.json()),
         fetch(API + "?action=batches").then(r => r.json())
       ]);
     })
-    .then(([a, b]) => {
+    .then(([a, allocs, b]) => {
       assignmentsCache[batchId] = a;
+      allocationCache[batchId] = allocs;
       batches = b;
+
+      btn.disabled = false;
+      btn.innerText = "Save Assignment";
+
       render();
+      setTimeout(() => toggleWorkspace(batchId), 0);
     })
     .catch(err => {
+      btn.disabled = false;
+      btn.innerText = "Save Assignment";
       alert("Failed to save assignment: " + err.message);
       console.error(err);
     });
 }
-
-/* ---------- STATUS ---------- */
-    
+  
     </script>
 
 </body>
