@@ -364,7 +364,12 @@ function save(batchId, btn) {
       btn.innerText = "Save Assignment";
 
       render();
-      setTimeout(() => toggleWorkspace(batchId), 0);
+
+// ensure DOM is painted first
+requestAnimationFrame(() => {
+  toggleWorkspace(batchId);
+});
+
     })
     .catch(err => {
       btn.disabled = false;
