@@ -143,7 +143,7 @@ button {
 </div>
 
 <script>
-const API = "https://script.google.com/macros/s/AKfycbxcyHC-uOscSj27M6qtZsDoTo8jiWAlooh1VUn4km2X95qJ56IzHjQ3C176S2g6jmM6/exec";
+const API = "https://script.google.com/macros/s/AKfycbyajPnNaPqLqHc98fJnYHgPIQ0DErpGDvu3bMzI4CVYvP1MCBBr_rK-ICzoIJjbBQs/exec";
 
 let batches = [];
 let vehicles = [];
@@ -232,15 +232,28 @@ function workspaceHTML(b) {
 
     <h4>Passenger Allocation</h4>
 
-    ${allocs.length
-      ? allocs.map(a => `
-        <div class="batch-sub">
-          👤 ${a.email} (${a.pax} pax) →
-          🚐 ${a.vehicleClass} ${a.vehicleNo || ""}
-        </div>
-      `).join("")
-      : "<div class='batch-sub'>No passengers allocated yet</div>"
-    }
+${allocs.length
+  ? allocs.map(a => `
+    <div class="batch-sub" style="display:flex;justify-content:space-between;gap:8px">
+      <div>
+        👤 <b>${a.email}</b><br>
+        Pax: ${a.pax}<br>
+        🚐 ${a.vehicleClass} ${a.vehicleNo || ""}<br>
+        📍 ${a.pickupPoint || "—"} @ ${a.pickupTime || "—"}<br>
+        👨‍✈️ ${a.driverName || "—"} (${a.driverPhone || "—"})
+      </div>
+
+      <div>
+        <button class="btn"
+          onclick="editAlloc('${a.id}', ${a.pax})">Edit</button>
+        <button class="btn"
+          onclick="cancelAlloc('${a.id}')">Cancel</button>
+      </div>
+    </div>
+  `).join("")
+  : "<div class='batch-sub'>No passengers allocated yet</div>"
+}
+
 
     <hr style="border-color:#1f2937;margin:10px 0">
 
@@ -379,6 +392,32 @@ requestAnimationFrame(() => {
     });
 }
   
+
+function cancelAlloc(id) {
+  if (!confirm("Cancel this allocation?")) return;
+
+  fetch(API + "?action=cancelAllocation&allocationId=" + encodeURIComponent(id))
+    .then(r => r.json())
+    .then(() => {
+      allocationCache = {};
+      render();
+    })
+    .catch(e => alert(e.message));
+}
+
+function editAlloc(id, current) {
+  const n = prompt("Enter new pax count", current);
+  if (!n || isNaN(n) || n <= 0) return;
+
+  fetch(API + `?action=editAllocation&allocationId=${id}&newPax=${n}`)
+    .then(r => r.json())
+    .then(() => {
+      allocationCache = {};
+      render();
+    })
+    .catch(e => alert(e.message));
+}
+
     </script>
 
 </body>
