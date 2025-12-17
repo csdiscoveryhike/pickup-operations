@@ -75,10 +75,11 @@ header h1 {
   border-radius:999px;
 }
 
-.PENDING { background:#fef3c7; color:#92400e }
-.ASSIGNING { background:#dbeafe; color:#1e40af }
-.ASSIGNED { background:#dcfce7; color:#166534 }
+.DRAFT { background:#334155; color:#e5e7eb }
+.VEHICLES_LOCKED { background:#fef3c7; color:#92400e }
+.ALLOCATED { background:#dcfce7; color:#166534 }
 .SENT { background:#bbf7d0; color:#065f46 }
+
 
 .progress {
   height:8px;
@@ -143,7 +144,7 @@ button {
 </div>
 
 <script>
-const API = "https://script.google.com/macros/s/AKfycbyajPnNaPqLqHc98fJnYHgPIQ0DErpGDvu3bMzI4CVYvP1MCBBr_rK-ICzoIJjbBQs/exec";
+const API = "https://script.google.com/macros/s/AKfycbznOvHF4WaFh_jExrVjHE7IFPpYByPOwHA9o8Z7WIAN6nQPklE_irxX_NjVGVuE9Hoj/exec";
 
 let batches = [];
 let vehicles = [];
@@ -215,7 +216,7 @@ function workspaceHTML(b) {
   const allocs = allocationCache[b.batchId] || [];
 
   // 🔒 Vehicle lock (NOT email sent)
-  const locked = b.locked === true;
+  const locked = b.status !== "DRAFT";
 
   return `
     <h4>Assigned Vehicles</h4>
@@ -232,6 +233,19 @@ function workspaceHTML(b) {
       : "<div class='batch-sub'>No vehicles assigned</div>"
     }
 
+    ${b.status === "VEHICLES_LOCKED" ? `
+  <div class="actions">
+    <button class="btn" onclick="allocatePassengers('${b.batchId}', this)">
+      👥 Allocate Passengers
+    </button>
+  </div>
+  <div class="note">
+    Allocation will run once and cannot be re-run automatically.
+  </div>
+` : ""}
+
+
+
     ${!locked ? `
       <div class="actions">
         <button class="btn" onclick="lockVehicles('${b.batchId}', this)">
@@ -242,48 +256,57 @@ function workspaceHTML(b) {
         Lock vehicles before passenger allocation.
       </div>
     ` : `
-      <div class="note safe">
-        Vehicles locked. Passenger allocation enabled.
-      </div>
+      ${b.status === "VEHICLES_LOCKED" ? `
+  <div class="note safe">
+    Vehicles locked. Passenger allocation enabled.
+  </div>
+` : ""}
+
     `}
 
     <hr style="border-color:#1f2937;margin:10px 0">
+${b.status === "ALLOCATED" ? `
+  <div class="note safe">
+    Vehicles are locked. Passenger allocation completed.
+  </div>
+` : ""}
 
-    ${locked ? `
-      <h4>Passenger Allocation</h4>
+   ${["ALLOCATED", "SENT"].includes(b.status) ? `
+  <h4>Passenger Allocation</h4>
 
-      ${allocs.length
-        ? allocs.map(a => `
-          <div class="batch-sub"
-            style="display:flex;justify-content:space-between;gap:10px">
+  ${allocs.length
+    ? allocs.map(a => `
+      <div class="batch-sub"
+        style="display:flex;justify-content:space-between;gap:10px">
 
-            <div>
-              👤 <b>${a.email}</b><br>
-              Pax: ${a.pax}<br>
-              🚐 ${a.vehicleClass} ${a.vehicleNo || ""}<br>
-              📍 ${a.pickupPoint || "—"} @ ${a.pickupTime || "—"}<br>
-              👨‍✈️ ${a.driverName || "—"} (${a.driverPhone || "—"})
-            </div>
+        <div>
+          👤 <b>${a.email}</b><br>
+          Pax: ${a.pax}<br>
+          🚐 ${a.vehicleClass} ${a.vehicleNo || ""}<br>
+          📍 ${a.pickupPoint || "—"} @ ${a.pickupTime || "—"}<br>
+          👨‍✈️ ${a.driverName || "—"} (${a.driverPhone || "—"})
+        </div>
 
-            <div>
-              <button class="btn"
-                onclick="editAlloc('${a.bookingId}', ${a.pax})">
-                Edit
-              </button>
-              <button class="btn"
-                onclick="cancelAlloc('${a.bookingId}')">
-                Cancel
-              </button>
-            </div>
-          </div>
-        `).join("")
-        : "<div class='batch-sub'>No passengers allocated yet</div>"
-      }
-    ` : `
-      <div class="note">
-        Passenger allocation will appear after vehicles are locked.
+        <div>
+          <button class="btn"
+            onclick="editAlloc('${a.id}', ${a.pax})">
+            Edit
+          </button>
+          <button class="btn"
+            onclick="cancelAlloc('${a.id}')">
+            Cancel
+          </button>
+        </div>
       </div>
-    `}
+    `).join("")
+    : "<div class='batch-sub'>No passengers allocated yet</div>"
+  }
+` : `
+  <div class="note">
+    Passenger allocation will appear after vehicles are locked.
+  </div>
+`}
+
 
     <hr style="border-color:#1f2937;margin:10px 0">
 
@@ -337,19 +360,26 @@ function toggleWorkspace(batchId) {
   ws.classList.add("open");
   ws.innerHTML = "<div class='batch-sub'>Loading data…</div>";
 
-  Promise.all([
-    assignmentsCache[batchId]
-      ? Promise.resolve(assignmentsCache[batchId])
-      : fetch(API + "?action=assignments&batchId=" + encodeURIComponent(batchId))
-          .then(r => r.json())
-          .then(d => (assignmentsCache[batchId] = d)),
+ const batch = batches.find(b => b.batchId === batchId);
+const shouldLoadAllocations =
+  ["ALLOCATED", "SENT"].includes(batch.status);
 
-    allocationCache[batchId]
-      ? Promise.resolve(allocationCache[batchId])
-      : fetch(API + "?action=allocations&batchId=" + encodeURIComponent(batchId))
-          .then(r => r.json())
-          .then(d => (allocationCache[batchId] = d))
-  ])
+Promise.all([
+  assignmentsCache[batchId]
+    ? Promise.resolve(assignmentsCache[batchId])
+    : fetch(API + "?action=assignments&batchId=" + encodeURIComponent(batchId))
+        .then(r => r.json())
+        .then(d => (assignmentsCache[batchId] = d)),
+
+  shouldLoadAllocations
+    ? (allocationCache[batchId]
+        ? Promise.resolve(allocationCache[batchId])
+        : fetch(API + "?action=allocations&batchId=" + encodeURIComponent(batchId))
+            .then(r => r.json())
+            .then(d => (allocationCache[batchId] = d)))
+    : Promise.resolve([])
+])
+
   .then(() => {
     ws.innerHTML = workspaceHTML(
       batches.find(b => b.batchId === batchId)
@@ -359,6 +389,32 @@ function toggleWorkspace(batchId) {
     console.error(err);
     ws.innerHTML = "<div class='batch-sub'>Failed to load batch data</div>";
   });
+}
+
+function allocatePassengers(batchId, btn) {
+  if (!confirm("Allocate passengers now? This can only be done once.")) return;
+
+  btn.disabled = true;
+  btn.innerText = "Allocating…";
+
+  fetch(API + `?action=allocatePassengers&batchId=${encodeURIComponent(batchId)}`)
+    .then(r => r.json())
+    .then(res => {
+      if (res.error) throw new Error(res.error);
+
+      allocationCache = {};
+      return fetch(API + "?action=batches").then(r => r.json());
+    })
+    .then(b => {
+      batches = b;
+      render();
+      requestAnimationFrame(() => toggleWorkspace(batchId));
+    })
+    .catch(err => {
+      alert(err.message);
+      btn.disabled = false;
+      btn.innerText = "👥 Allocate Passengers";
+    });
 }
 
 /* ---------- SAVE ASSIGNMENT ---------- */
@@ -394,14 +450,14 @@ function save(batchId, btn) {
 
       return Promise.all([
         fetch(API + "?action=assignments&batchId=" + batchId).then(r => r.json()),
-        fetch(API + "?action=allocations&batchId=" + batchId).then(r => r.json()),
         fetch(API + "?action=batches").then(r => r.json())
       ]);
     })
-    .then(([a, allocs, b]) => {
-      assignmentsCache[batchId] = a;
-      allocationCache[batchId] = allocs;
-      batches = b;
+    .then(([a, b]) => {
+  assignmentsCache[batchId] = a;
+  allocationCache[batchId] = []; // reset safely
+  batches = b;
+
 
       btn.disabled = false;
       btn.innerText = "Save Assignment";
