@@ -148,7 +148,6 @@ const API = "https://script.google.com/macros/s/AKfycbxu58wRMJsBkNinw3NDBuzhV-E8
 let batches = [];
 let vehicles = [];
 let assignmentsCache = {};
-let openBatch = null;
 
 /* ---------- INITIAL LOAD ---------- */
 Promise.all([
@@ -179,7 +178,7 @@ function render() {
       b.assignedCapacity < b.totalPax ? "#f59e0b" : "#22c55e";
 
     el.innerHTML += `
-      <div class="batch">
+      <div class="batch" id="batch-${b.batchId}">
         <div class="batch-header">
           <div>
             <div class="batch-title">${b.trekName}</div>
@@ -197,14 +196,12 @@ function render() {
         </div>
 
         <div class="actions">
-          <button class="btn" onclick="toggle('${b.batchId}')">
-            ${openBatch === b.batchId ? "Close" : "Manage Batch"}
+          <button class="btn" onclick="toggleWorkspace('${b.batchId}')">
+            Manage Batch
           </button>
         </div>
 
-        <div class="workspace ${openBatch === b.batchId ? "open" : ""}">
-          ${openBatch === b.batchId ? workspaceHTML(b) : ""}
-        </div>
+        <div class="workspace" id="ws-${b.batchId}"></div>
       </div>
     `;
   });
@@ -286,22 +283,43 @@ function workspaceHTML(b) {
 }
 
 /* ---------- TOGGLE ---------- */
-function toggle(id) {
-  openBatch = openBatch === id ? null : id;
+function toggleWorkspace(batchId) {
+  const ws = document.getElementById(`ws-${batchId}`);
+  const isOpen = ws.classList.contains("open");
 
-  if (openBatch && !assignmentsCache[id]) {
-    fetch(API + "?action=assignments&batchId=" + encodeURIComponent(id))
+  // Close all other workspaces (optional but clean UX)
+  document.querySelectorAll(".workspace.open").forEach(el => {
+    el.classList.remove("open");
+    el.innerHTML = "";
+  });
+
+  if (isOpen) {
+    ws.classList.remove("open");
+    ws.innerHTML = "";
+    return;
+  }
+
+  ws.classList.add("open");
+
+  // Lazy load assignments
+  if (!assignmentsCache[batchId]) {
+    ws.innerHTML = "<div class='batch-sub'>Loading assignments…</div>";
+
+    fetch(API + "?action=assignments&batchId=" + encodeURIComponent(batchId))
       .then(r => r.json())
-      .then(d => {
-        assignmentsCache[id] = d;
-        render();
+      .then(data => {
+        assignmentsCache[batchId] = data;
+        ws.innerHTML = workspaceHTML(
+          batches.find(b => b.batchId === batchId)
+        );
       })
-      .catch(err => {
-        alert("Failed to load assignments");
-        console.error(err);
+      .catch(() => {
+        ws.innerHTML = "<div class='batch-sub'>Failed to load assignments</div>";
       });
   } else {
-    render();
+    ws.innerHTML = workspaceHTML(
+      batches.find(b => b.batchId === batchId)
+    );
   }
 }
 
