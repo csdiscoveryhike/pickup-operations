@@ -328,42 +328,39 @@ function save(batchId) {
   const vc = document.getElementById(`vc-${batchId}`).value;
   if (!vc) return alert("Select vehicle class");
 
-  const payload = {
+  const params = new URLSearchParams({
     action: "addAssignment",
-    batchId,
+    batchId: batchId,
     vehicleClass: vc,
-    vehicleNo: document.getElementById(`vn-${batchId}`).value,
-    driverName: document.getElementById(`dn-${batchId}`).value,
-    driverPhone: document.getElementById(`dp-${batchId}`).value,
-    pickupPoint: document.getElementById(`pp-${batchId}`).value,
-    pickupTime: document.getElementById(`pt-${batchId}`).value
-  };
-
-  fetch(API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  })
-  .then(r => r.json())
-  .then(res => {
-    if (res.error) throw new Error(res.error);
-
-    assignmentsCache[batchId] = null;
-
-    return Promise.all([
-      fetch(API + "?action=assignments&batchId=" + batchId).then(r => r.json()),
-      fetch(API + "?action=batches").then(r => r.json())
-    ]);
-  })
-  .then(([a, b]) => {
-    assignmentsCache[batchId] = a;
-    batches = b;
-    render();
-  })
-  .catch(err => {
-    alert("Failed to save assignment: " + err.message);
-    console.error(err);
+    vehicleNo: document.getElementById(`vn-${batchId}`).value || "",
+    driverName: document.getElementById(`dn-${batchId}`).value || "",
+    driverPhone: document.getElementById(`dp-${batchId}`).value || "",
+    pickupPoint: document.getElementById(`pp-${batchId}`).value || "",
+    pickupTime: document.getElementById(`pt-${batchId}`).value || ""
   });
+
+  fetch(API + "?" + params.toString())
+    .then(r => r.json())
+    .then(res => {
+      if (res.error) throw new Error(res.error);
+
+      // Invalidate cache & reload
+      assignmentsCache[batchId] = null;
+
+      return Promise.all([
+        fetch(API + "?action=assignments&batchId=" + batchId).then(r => r.json()),
+        fetch(API + "?action=batches").then(r => r.json())
+      ]);
+    })
+    .then(([a, b]) => {
+      assignmentsCache[batchId] = a;
+      batches = b;
+      render();
+    })
+    .catch(err => {
+      alert("Failed to save assignment: " + err.message);
+      console.error(err);
+    });
 }
 
 /* ---------- STATUS ---------- */
