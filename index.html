@@ -375,28 +375,21 @@ function isLocked(b) {
 }
 
 function setStatus(batchId, status) {
-  if (!confirm(`Change status to ${status}?`)) return;
-
-  fetch(API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "updateStatus",
-      batchId,
-      status
-    })
-  })
-  .then(r => r.json())
-  .then(res => {
-    if (res.error) throw new Error(res.error);
-    const b = batches.find(x => x.batchId === batchId);
-    b.status = status;
-    render();
-  })
-  .catch(err => {
-    alert("Failed to update status: " + err.message);
-    console.error(err);
+  const params = new URLSearchParams({
+    action: "updateStatus",
+    batchId,
+    status
   });
+
+  fetch(API + "?" + params.toString())
+    .then(r => r.json())
+    .then(res => {
+      if (res.error) throw new Error(res.error);
+      const b = batches.find(x => x.batchId === batchId);
+      b.status = status;
+      render();
+    })
+    .catch(err => alert(err.message));
 }
 </script>
 
