@@ -212,39 +212,26 @@ function workspaceHTML(b) {
   const assigns = (assignmentsCache[b.batchId] || [])
     .filter(a => a.status === "ACTIVE");
 
-  const suggested = suggestedStatus(b);
-  const locked = isLocked(b);
+  const locked = b.status === "SENT";
 
   return `
     <h4>Assigned Vehicles</h4>
+
     ${assigns.length
       ? assigns.map(a => `
         <div class="batch-sub">
           🚐 ${a.vehicleClass} (${a.assignedPax}) —
           ${a.driverName || "—"} (${a.driverPhone || "—"})
-        </div>`).join("")
+        </div>
+      `).join("")
       : "<div class='batch-sub'>No vehicles assigned</div>"
     }
 
-    <hr style="border-color:#1f2937;margin:10px 0">
-
-    <div class="batch-sub">
-      Suggested status: <b>${suggested}</b>
-    </div>
-
-    <div class="actions">
-      ${!locked && b.status !== suggested ? `
-        <button class="btn"
-          onclick="setStatus('${b.batchId}','${suggested}')">
-          Mark as ${suggested}
-        </button>` : ""
-      }
-      ${locked ? `
-        <div class="note" style="background:#7c2d12;color:#fee2e2">
-          RESTRICTED: Pickup email already sent.
-        </div>` : ""
-      }
-    </div>
+    ${locked ? `
+      <div class="note" style="background:#7c2d12;color:#fee2e2;margin-top:10px;">
+        RESTRICTED: Pickup email already sent. Vehicle changes are disabled.
+      </div>
+    ` : ""}
 
     <hr style="border-color:#1f2937;margin:10px 0">
 
@@ -252,8 +239,9 @@ function workspaceHTML(b) {
 
     ${locked ? `
       <div class="note" style="background:#7c2d12;color:#fee2e2">
-        Vehicle changes disabled after SENT.
-      </div>` : `
+        Cannot add or edit vehicles after pickup email is sent.
+      </div>
+    ` : `
       <select id="vc-${b.batchId}">
         <option value="">Select vehicle</option>
         ${vehicles.map(v =>
@@ -276,7 +264,7 @@ function workspaceHTML(b) {
       </div>
 
       <div class="note safe">
-        Assigned pax auto-calculated from vehicle capacity.
+        Assigned pax is auto-calculated from vehicle capacity.
       </div>
     `}
   `;
@@ -364,34 +352,8 @@ function save(batchId) {
 }
 
 /* ---------- STATUS ---------- */
-function suggestedStatus(b) {
-  if (b.assignedCapacity === 0) return "PENDING";
-  if (b.assignedCapacity < b.totalPax) return "ASSIGNING";
-  return "ASSIGNED";
-}
-
-function isLocked(b) {
-  return b.status === "SENT";
-}
-
-function setStatus(batchId, status) {
-  const params = new URLSearchParams({
-    action: "updateStatus",
-    batchId,
-    status
-  });
-
-  fetch(API + "?" + params.toString())
-    .then(r => r.json())
-    .then(res => {
-      if (res.error) throw new Error(res.error);
-      const b = batches.find(x => x.batchId === batchId);
-      b.status = status;
-      render();
-    })
-    .catch(err => alert(err.message));
-}
-</script>
+    
+    </script>
 
 </body>
 </html>
