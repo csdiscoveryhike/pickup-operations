@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pickup Operations | Discovery Hike</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+:root {
+  --bg:#0f172a;
+  --card:#111827;
+  --border:#1f2937;
+  --text:#e5e7eb;
+  --muted:#9ca3af;
+  --primary:#2563eb;
+  --safe:#16a34a;
+  --warn:#f59e0b;
+}
+
+* { box-sizing: border-box }
+
+body {
+  margin:0;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  padding:16px 20px;
+  border-bottom:1px solid var(--border);
+  background:#020617;
+}
+
+header h1 {
+  font-size:16px;
+  margin:0;
+}
+
+.container {
+  max-width:1000px;
+  margin:auto;
+  padding:16px;
+}
+
+.batch {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px;
+  margin-bottom:14px;
+}
+
+.batch-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+}
+
+.batch-title {
+  font-size:15px;
+  font-weight:600;
+}
+
+.batch-sub {
+  font-size:12px;
+  color:var(--muted);
+}
+
+.status {
+  font-size:11px;
+  font-weight:700;
+  padding:4px 10px;
+  border-radius:999px;
+}
+
+.PENDING { background:#fef3c7; color:#92400e }
+.ASSIGNING { background:#dbeafe; color:#1e40af }
+.ASSIGNED { background:#dcfce7; color:#166534 }
+.SENT { background:#bbf7d0; color:#065f46 }
+
+.progress {
+  height:8px;
+  border-radius:999px;
+  background:#020617;
+  margin-top:8px;
+  overflow:hidden;
+}
+
+.progress span {
+  display:block;
+  height:100%;
+  background:linear-gradient(90deg,#2563eb,#22c55e);
+}
+
+.actions {
+  margin-top:10px;
+}
+
+button {
+  border:none;
+  border-radius:8px;
+  padding:8px 12px;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+}
+
+.btn {
+  background:#1f2937;
+  color:#e5e7eb;
+}
+
+.workspace {
+  display:none;
+  margin-top:14px;
+  border-top:1px dashed var(--border);
+  padding-top:14px;
+}
+
+.workspace.open { display:block }
+
+.note {
+  margin-top:10px;
+  padding:10px;
+  font-size:12px;
+  border-radius:10px;
+}
+
+.safe { background:#064e3b; color:#d1fae5 }
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Discovery Hike – Pickup Operations</h1>
+</header>
+
+<div class="container">
+  <div id="list">Loading pickup batches…</div>
+</div>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbxu58wRMJsBkNinw3NDBuzhV-E8c0x2Oc7FtAtkdvYF9OP1O5MWtk7quIOI5wBs5Q2J/exec";
+
+let batches = [];
+let vehicles = [];
+let assignmentsCache = {};
+let openBatch = null;
+
+/* ---------- INITIAL LOAD ---------- */
+Promise.all([
+  fetch(API + "?action=batches").then(r => r.json()),
+  fetch(API + "?action=vehicles").then(r => r.json())
+])
+.then(([b, v]) => {
+  batches = b;
+  vehicles = v;
+  render();
+})
+.catch(err => {
+  alert("Failed to load pickup data");
+  console.error(err);
+});
+
+/* ---------- RENDER ---------- */
+function render() {
+  const el = document.getElementById("list");
+  el.innerHTML = "";
+
+  batches.forEach(b => {
+    const pct = b.totalPax
+      ? Math.min(100, Math.round((b.assignedCapacity / b.totalPax) * 100))
+      : 0;
+
+    const barColor =
+      b.assignedCapacity < b.totalPax ? "#f59e0b" : "#22c55e";
+
+    el.innerHTML += `
+      <div class="batch">
+        <div class="batch-header">
+          <div>
+            <div class="batch-title">${b.trekName}</div>
+            <div class="batch-sub">${b.trekDate}</div>
+          </div>
+          <span class="status ${b.status}">${b.status}</span>
+        </div>
+
+        <div class="batch-sub">
+          Pax: <b>${b.totalPax}</b> • Assigned: <b>${b.assignedCapacity}</b>
+        </div>
+
+        <div class="progress">
+          <span style="width:${pct}%;background:${barColor}"></span>
+        </div>
+
+        <div class="actions">
+          <button class="btn" onclick="toggle('${b.batchId}')">
+            ${openBatch === b.batchId ? "Close" : "Manage Batch"}
+          </button>
+        </div>
+
+        <div class="workspace ${openBatch === b.batchId ? "open" : ""}">
+          ${openBatch === b.batchId ? workspaceHTML(b) : ""}
+        </div>
+      </div>
+    `;
+  });
+}
+
+/* ---------- WORKSPACE ---------- */
+function workspaceHTML(b) {
+  const assigns = (assignmentsCache[b.batchId] || [])
+    .filter(a => a.status === "ACTIVE");
+
+  const suggested = suggestedStatus(b);
+  const locked = isLocked(b);
+
+  return `
+    <h4>Assigned Vehicles</h4>
+    ${assigns.length
+      ? assigns.map(a => `
+        <div class="batch-sub">
+          🚐 ${a.vehicleClass} (${a.assignedPax}) —
+          ${a.driverName || "—"} (${a.driverPhone || "—"})
+        </div>`).join("")
+      : "<div class='batch-sub'>No vehicles assigned</div>"
+    }
+
+    <hr style="border-color:#1f2937;margin:10px 0">
+
+    <div class="batch-sub">
+      Suggested status: <b>${suggested}</b>
+    </div>
+
+    <div class="actions">
+      ${!locked && b.status !== suggested ? `
+        <button class="btn"
+          onclick="setStatus('${b.batchId}','${suggested}')">
+          Mark as ${suggested}
+        </button>` : ""
+      }
+      ${locked ? `
+        <div class="note" style="background:#7c2d12;color:#fee2e2">
+          RESTRICTED: Pickup email already sent.
+        </div>` : ""
+      }
+    </div>
+
+    <hr style="border-color:#1f2937;margin:10px 0">
+
+    <h4>Add Vehicle</h4>
+
+    ${locked ? `
+      <div class="note" style="background:#7c2d12;color:#fee2e2">
+        Vehicle changes disabled after SENT.
+      </div>` : `
+      <select id="vc-${b.batchId}">
+        <option value="">Select vehicle</option>
+        ${vehicles.map(v =>
+          `<option value="${v.class}">
+            ${v.class} (${v.capacity})
+          </option>`
+        ).join("")}
+      </select>
+
+      <input placeholder="Vehicle Number" id="vn-${b.batchId}">
+      <input placeholder="Driver Name" id="dn-${b.batchId}">
+      <input placeholder="Driver Phone" id="dp-${b.batchId}">
+      <input placeholder="Pickup Point" id="pp-${b.batchId}">
+      <input type="time" id="pt-${b.batchId}">
+
+      <div class="actions">
+        <button class="btn" onclick="save('${b.batchId}')">
+          Save Assignment
+        </button>
+      </div>
+
+      <div class="note safe">
+        Assigned pax auto-calculated from vehicle capacity.
+      </div>
+    `}
+  `;
+}
+
+/* ---------- TOGGLE ---------- */
+function toggle(id) {
+  openBatch = openBatch === id ? null : id;
+
+  if (openBatch && !assignmentsCache[id]) {
+    fetch(API + "?action=assignments&batchId=" + encodeURIComponent(id))
+      .then(r => r.json())
+      .then(d => {
+        assignmentsCache[id] = d;
+        render();
+      })
+      .catch(err => {
+        alert("Failed to load assignments");
+        console.error(err);
+      });
+  } else {
+    render();
+  }
+}
+
+/* ---------- SAVE ASSIGNMENT ---------- */
+function save(batchId) {
+  const vc = document.getElementById(`vc-${batchId}`).value;
+  if (!vc) return alert("Select vehicle class");
+
+  const payload = {
+    action: "addAssignment",
+    batchId,
+    vehicleClass: vc,
+    vehicleNo: document.getElementById(`vn-${batchId}`).value,
+    driverName: document.getElementById(`dn-${batchId}`).value,
+    driverPhone: document.getElementById(`dp-${batchId}`).value,
+    pickupPoint: document.getElementById(`pp-${batchId}`).value,
+    pickupTime: document.getElementById(`pt-${batchId}`).value
+  };
+
+  fetch(API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.error) throw new Error(res.error);
+
+    assignmentsCache[batchId] = null;
+
+    return Promise.all([
+      fetch(API + "?action=assignments&batchId=" + batchId).then(r => r.json()),
+      fetch(API + "?action=batches").then(r => r.json())
+    ]);
+  })
+  .then(([a, b]) => {
+    assignmentsCache[batchId] = a;
+    batches = b;
+    render();
+  })
+  .catch(err => {
+    alert("Failed to save assignment: " + err.message);
+    console.error(err);
+  });
+}
+
+/* ---------- STATUS ---------- */
+function suggestedStatus(b) {
+  if (b.assignedCapacity === 0) return "PENDING";
+  if (b.assignedCapacity < b.totalPax) return "ASSIGNING";
+  return "ASSIGNED";
+}
+
+function isLocked(b) {
+  return b.status === "SENT";
+}
+
+function setStatus(batchId, status) {
+  if (!confirm(`Change status to ${status}?`)) return;
+
+  fetch(API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "updateStatus",
+      batchId,
+      status
+    })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.error) throw new Error(res.error);
+    const b = batches.find(x => x.batchId === batchId);
+    b.status = status;
+    render();
+  })
+  .catch(err => {
+    alert("Failed to update status: " + err.message);
+    console.error(err);
+  });
+}
+</script>
+
+</body>
+</html>
