@@ -213,7 +213,9 @@ function workspaceHTML(b) {
     .filter(a => a.status === "ACTIVE");
 
   const allocs = allocationCache[b.batchId] || [];
-  const locked = b.status === "SENT";
+
+  // 🔒 Vehicle lock (NOT email sent)
+  const locked = b.locked === true;
 
   return `
     <h4>Assigned Vehicles</h4>
@@ -221,39 +223,67 @@ function workspaceHTML(b) {
     ${assigns.length
       ? assigns.map(a => `
         <div class="batch-sub">
-          🚐 ${a.vehicleClass} (${a.assignedPax}) —
-          ${a.driverName || "—"} (${a.driverPhone || "—"})
+          🚐 <b>${a.vehicleClass}</b> (${a.assignedPax} pax)<br>
+          Vehicle No: ${a.vehicleNo || "—"}<br>
+          Driver: ${a.driverName || "—"} (${a.driverPhone || "—"})<br>
+          Pickup: ${a.pickupPoint || "—"} @ ${a.pickupTime || "—"}
         </div>
       `).join("")
       : "<div class='batch-sub'>No vehicles assigned</div>"
     }
 
+    ${!locked ? `
+      <div class="actions">
+        <button class="btn" onclick="lockVehicles('${b.batchId}', this)">
+          🔒 Lock Vehicles
+        </button>
+      </div>
+      <div class="note">
+        Lock vehicles before passenger allocation.
+      </div>
+    ` : `
+      <div class="note safe">
+        Vehicles locked. Passenger allocation enabled.
+      </div>
+    `}
+
     <hr style="border-color:#1f2937;margin:10px 0">
 
-    <h4>Passenger Allocation</h4>
+    ${locked ? `
+      <h4>Passenger Allocation</h4>
 
-${allocs.length
-  ? allocs.map(a => `
-    <div class="batch-sub" style="display:flex;justify-content:space-between;gap:8px">
-      <div>
-        👤 <b>${a.email}</b><br>
-        Pax: ${a.pax}<br>
-        🚐 ${a.vehicleClass} ${a.vehicleNo || ""}<br>
-        📍 ${a.pickupPoint || "—"} @ ${a.pickupTime || "—"}<br>
-        👨‍✈️ ${a.driverName || "—"} (${a.driverPhone || "—"})
+      ${allocs.length
+        ? allocs.map(a => `
+          <div class="batch-sub"
+            style="display:flex;justify-content:space-between;gap:10px">
+
+            <div>
+              👤 <b>${a.email}</b><br>
+              Pax: ${a.pax}<br>
+              🚐 ${a.vehicleClass} ${a.vehicleNo || ""}<br>
+              📍 ${a.pickupPoint || "—"} @ ${a.pickupTime || "—"}<br>
+              👨‍✈️ ${a.driverName || "—"} (${a.driverPhone || "—"})
+            </div>
+
+            <div>
+              <button class="btn"
+                onclick="editAlloc('${a.bookingId}', ${a.pax})">
+                Edit
+              </button>
+              <button class="btn"
+                onclick="cancelAlloc('${a.bookingId}')">
+                Cancel
+              </button>
+            </div>
+          </div>
+        `).join("")
+        : "<div class='batch-sub'>No passengers allocated yet</div>"
+      }
+    ` : `
+      <div class="note">
+        Passenger allocation will appear after vehicles are locked.
       </div>
-
-      <div>
-        <button class="btn"
-          onclick="editAlloc('${a.id}', ${a.pax})">Edit</button>
-        <button class="btn"
-          onclick="cancelAlloc('${a.id}')">Cancel</button>
-      </div>
-    </div>
-  `).join("")
-  : "<div class='batch-sub'>No passengers allocated yet</div>"
-}
-
+    `}
 
     <hr style="border-color:#1f2937;margin:10px 0">
 
@@ -261,7 +291,7 @@ ${allocs.length
 
     ${locked ? `
       <div class="note" style="background:#7c2d12;color:#fee2e2">
-        Cannot add or edit vehicles after pickup email is sent.
+        Vehicles are locked. Cannot add or edit vehicles.
       </div>
     ` : `
       <select id="vc-${b.batchId}">
@@ -392,6 +422,31 @@ requestAnimationFrame(() => {
     });
 }
   
+function lockVehicles(batchId, btn) {
+  if (!confirm("Lock vehicles? You won’t be able to edit them later.")) return;
+
+  btn.disabled = true;
+  btn.innerText = "Locking…";
+
+  fetch(API + "?action=lockVehicles&batchId=" + encodeURIComponent(batchId))
+    .then(r => r.json())
+    .then(res => {
+      if (res.error) throw new Error(res.error);
+
+      return fetch(API + "?action=batches").then(r => r.json());
+    })
+    .then(b => {
+      batches = b;
+      render();
+      setTimeout(() => toggleWorkspace(batchId), 0);
+    })
+    .catch(err => {
+      alert(err.message);
+      btn.disabled = false;
+      btn.innerText = "🔒 Lock Vehicles";
+    });
+}
+
 
 function cancelAlloc(id) {
   if (!confirm("Cancel this allocation?")) return;
