@@ -227,7 +227,8 @@ function workspaceHTML(b) {
           🚐 <b>${a.vehicleClass}</b> (${a.assignedPax} pax)<br>
           Vehicle No: ${a.vehicleNo || "—"}<br>
           Driver: ${a.driverName || "—"} (${a.driverPhone || "—"})<br>
-          Pickup: ${a.pickupPoint || "—"} @ ${a.pickupTime || "—"}
+          Pickup: ${a.pickupPoint || "—"} @ ${formatTime12h(a.pickupTime)}
+
         </div>
       `).join("")
       : "<div class='batch-sub'>No vehicles assigned</div>"
@@ -415,6 +416,21 @@ function allocatePassengers(batchId, btn) {
       btn.disabled = false;
       btn.innerText = "👥 Allocate Passengers";
     });
+}
+
+function formatTime12h(value) {
+  if (!value) return "—";
+
+  const d = new Date(value);
+  if (isNaN(d)) return "—";
+
+  let hours = d.getHours();
+  const minutes = d.getMinutes().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+
+  hours = hours % 12 || 12;
+
+  return `${hours}:${minutes} ${ampm}`;
 }
 
 /* ---------- SAVE ASSIGNMENT ---------- */
