@@ -80,27 +80,19 @@ body.dark .batch-sub.passenger {
   font-size: 12px;
   color: #d0e4ff;
 }
-.header-inner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-
-.logo {
-  height: 36px;
+.logo-top {
+  height: 48px;
   width: auto;
+  margin-bottom: 10px;
   object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
 }
 
 /* Mobile adjustment */
 @media (max-width: 600px) {
-  .logo {
-    height: 30px;
-  }
-
-  .header-inner {
-    gap: 8px;
+  .logo-top {
+    height: 38px;
+    margin-bottom: 8px;
   }
 }
 
@@ -269,13 +261,9 @@ body.dark select {
 <div class="toggle" onclick="toggleDark()">🌙 / ☀️</div>
 
 <header class="header-gradient">
-  <div class="header-inner">
-    <img src="https://i.imgur.com/40sl7Sv.png" alt="Discovery Hike" class="logo">
-    <div>
+    <img src="https://i.imgur.com/40sl7Sv.png" alt="Discovery Hike" class="logo-top">
       <h1>Discovery Hike – Pickup Operations</h1>
       <p>Internal transport & allocation system</p>
-    </div>
-  </div>
 </header>
 
 
