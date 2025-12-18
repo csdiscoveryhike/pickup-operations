@@ -59,48 +59,75 @@ body.dark .batch-sub.passenger {
   background: rgba(255,255,255,0.04);
 }
 
-
 .header-gradient {
   background: linear-gradient(135deg, #00254d, #004b99);
   padding: 22px 20px 24px;
-  text-align: center;
   border-bottom-left-radius: 18px;
   border-bottom-right-radius: 18px;
   box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+  min-height: 120px;   /* matches 75px logo nicely */
 }
 
-.header-gradient h1 {
-  margin-top: 2px;
-  line-height: 1.3;
+
+/* ===== HEADER LAYOUT LOCK ===== */
+.header-inner {
+  max-width: 1000px;
+  margin: 0 auto;
+
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  justify-content: flex-start;
+  text-align: left;
 }
 
+
+/* text block */
+.header-text h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.header-text p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  opacity: 0.95;
+}
+
+.header-gradient h1,
 .header-gradient p {
-  margin-top: 4px;
+  color: #ffffff;
 }
 
+.header-text {
+  padding-top: 4px;
+}
+
+
+/* ===== LOGO SIZE LOCK ===== */
 .logo-top {
-  height: 32px;          /* desktop size */
+  height: 75px;          /* desktop */
   width: auto;
-  margin-bottom: 6px;
+  flex-shrink: 0;
   object-fit: contain;
-  opacity: 0.95;         /* subtle, professional tone */
+  opacity: 0.95;
 }
 
-/* Tablet */
+
 @media (max-width: 900px) {
   .logo-top {
-    height: 30px;
+    height: 56px;
   }
 }
 
-/* Mobile */
 @media (max-width: 600px) {
   .logo-top {
-    height: 26px;
-    margin-bottom: 4px;
+    height: 42px;   /* phone-friendly */
   }
 }
-
 
 
 .toggle {
@@ -267,9 +294,13 @@ body.dark select {
 <div class="toggle" onclick="toggleDark()">🌙 / ☀️</div>
 
 <header class="header-gradient">
+  <div class="header-inner">
     <img src="https://i.imgur.com/40sl7Sv.png" alt="Discovery Hike" class="logo-top">
+    <div class="header-text">
       <h1>Discovery Hike – Pickup Operations</h1>
       <p>Internal transport & allocation system</p>
+    </div>
+  </div>
 </header>
 
 
