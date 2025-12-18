@@ -324,7 +324,7 @@ ${b.status === "ALLOCATED" ? `
   ` : ""}
 
   ${editable ? `
-  <select id="mv-${a.id}">
+  <select id="mv-${a.id}" onchange="this.nextElementSibling.disabled = !this.value">
     <option value="">Move to vehicle…</option>
     ${assigns.map(v => `
       <option value="${v.vehicleClass}|${v.vehicleNo || ""}"${v.vehicleClass === a.vehicleClass && v.vehicleNo === a.vehicleNo ? "disabled" : ""}>
@@ -333,7 +333,7 @@ ${b.status === "ALLOCATED" ? `
     `).join("")}
   </select>
 
-  <button class="btn"
+  <button class="btn" disabled
     onclick="handleMove('${a.id}', 'mv-${a.id}')">
     Move
   </button>
@@ -632,23 +632,28 @@ function cancelAlloc(id) {
 
 function handleMove(allocationId, selectId) {
   const sel = document.getElementById(selectId);
-  if (!sel || !sel.value) {
-    return alert("Select a target vehicle");
+
+  // HARD guard
+  if (!sel) {
+    return alert("Move dropdown not found. Please reopen the batch.");
   }
 
-  const parts = sel.value.split("|");
-  const vehicleClass = (parts[0] || "").trim();
-  const vehicleNo = (parts[1] || "").trim();
+  const raw = sel.value;
+  if (!raw || raw.indexOf("|") === -1) {
+    return alert("Please select a valid target vehicle");
+  }
 
-  if (!vehicleClass) {
-    return alert("Invalid target vehicle");
+  const [vehicleClass, vehicleNo = ""] = raw.split("|");
+
+  if (!vehicleClass.trim()) {
+    return alert("Invalid target vehicle selected");
   }
 
   const params = new URLSearchParams({
     action: "moveAllocation",
-    allocationId: allocationId,
-    targetVehicleClass: vehicleClass,
-    targetVehicleNo: vehicleNo
+    allocationId,
+    targetVehicleClass: vehicleClass.trim(),
+    targetVehicleNo: vehicleNo.trim()
   });
 
   fetch(API + "?" + params.toString())
@@ -661,7 +666,6 @@ function handleMove(allocationId, selectId) {
     })
     .catch(err => alert(err.message));
 }
-
 
 function editAlloc(id, current) {
   const n = prompt("Enter new pax count", current);
