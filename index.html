@@ -144,7 +144,7 @@ button {
 </div>
 
 <script>
-const API = "https://script.google.com/macros/s/AKfycbznOvHF4WaFh_jExrVjHE7IFPpYByPOwHA9o8Z7WIAN6nQPklE_irxX_NjVGVuE9Hoj/exec";
+const API = "https://script.google.com/macros/s/AKfycbxEvsnqAljIug9fdmODzpav7fmz6wldF5XpD31AZ4TQup0op7KqcBGSKt7BvLoLd8Pc/exec";
 
 let batches = [];
 let vehicles = [];
@@ -214,6 +214,7 @@ function workspaceHTML(b) {
     .filter(a => a.status === "ACTIVE");
 
   const allocs = allocationCache[b.batchId] || [];
+  const editable = b.status === "ALLOCATED";
 
   // 🔒 Vehicle lock (NOT email sent)
   const locked = b.status !== "DRAFT";
@@ -272,15 +273,36 @@ ${b.status === "ALLOCATED" ? `
   </div>
 ` : ""}
 
-   ${["ALLOCATED", "SENT"].includes(b.status) ? `
+   ${b.status === "ALLOCATED"
+ ? `
   <h4>Passenger Allocation</h4>
+<div id="swap-bar-${b.batchId}" style="display:none;margin:6px 0">
+  <button class="btn"
+    onclick="swapSelected('${b.batchId}')">
+    🔁 Swap Selected Passengers
+  </button>
+</div>
 
   ${allocs.length
     ? allocs.map(a => `
       <div class="batch-sub"
         style="display:flex;justify-content:space-between;gap:10px">
-
+        
         <div>
+          ${editable ? `
+<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+  <input type="checkbox"
+    class="swap-check"
+    value="${a.id}"
+    onchange="updateSwapBar('${b.batchId}')">
+  <label style="font-size:11px;color:#9ca3af">
+    Select for swap
+  </label>
+</div>
+` : ""}
+
+
+
           👤 <b>${a.email}</b><br>
           Pax: ${a.pax}<br>
           🚐 ${a.vehicleClass} ${a.vehicleNo || ""}<br>
@@ -288,16 +310,36 @@ ${b.status === "ALLOCATED" ? `
           👨‍✈️ ${a.driverName || "—"} (${a.driverPhone || "—"})
         </div>
 
-        <div>
-          <button class="btn"
-            onclick="editAlloc('${a.id}', ${a.pax})">
-            Edit
-          </button>
-          <button class="btn"
-            onclick="cancelAlloc('${a.id}')">
-            Cancel
-          </button>
-        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+  ${editable ? `
+  <button class="btn"
+    onclick="editAlloc('${a.id}', ${a.pax})">
+    Edit
+  </button>
+
+  <button class="btn"
+    onclick="cancelAlloc('${a.id}')">
+    Cancel
+  </button>
+  ` : ""}
+
+  ${editable ? `
+  <select id="mv-${a.id}">
+    <option value="">Move to vehicle…</option>
+    ${assigns.map(v => `
+      <option value="${v.vehicleClass}|${v.vehicleNo}">
+        ${v.vehicleClass} ${v.vehicleNo || ""}
+      </option>
+    `).join("")}
+  </select>
+
+  <button class="btn"
+    onclick="handleMove('${a.id}', 'mv-${a.id}')">
+    Move
+  </button>
+  ` : ""}
+</div>
+
       </div>
     `).join("")
     : "<div class='batch-sub'>No passengers allocated yet</div>"
@@ -346,6 +388,24 @@ ${b.status === "ALLOCATED" ? `
   `;
 }
 
+function swapAlloc(idA, idB) {
+  const params = new URLSearchParams({
+    action: "swapAllocations",
+    allocationIdA: idA,
+    allocationIdB: idB
+  });
+
+  fetch(API + "?" + params.toString())
+    .then(r => r.json())
+    .then(res => {
+      if (res.error) throw new Error(res.error);
+
+      allocationCache = {};
+      render();
+    })
+    .catch(err => alert(err.message));
+}
+
 /* ---------- TOGGLE ---------- */
 function toggleWorkspace(batchId) {
   const ws = document.getElementById(`ws-${batchId}`);
@@ -362,8 +422,9 @@ function toggleWorkspace(batchId) {
   ws.innerHTML = "<div class='batch-sub'>Loading data…</div>";
 
  const batch = batches.find(b => b.batchId === batchId);
-const shouldLoadAllocations =
-  ["ALLOCATED", "SENT"].includes(batch.status);
+ const shouldLoadAllocations =
+  batch.status === "ALLOCATED";
+
 
 Promise.all([
   assignmentsCache[batchId]
@@ -519,6 +580,43 @@ function lockVehicles(batchId, btn) {
     });
 }
 
+function updateSwapBar(batchId) {
+  const checks = document.querySelectorAll(
+    `#ws-${batchId} .swap-check:checked`
+  );
+
+  const bar = document.getElementById(`swap-bar-${batchId}`);
+  bar.style.display = checks.length === 2 ? "block" : "none";
+}
+
+function swapSelected(batchId) {
+  const ids = [...document.querySelectorAll(
+    `#ws-${batchId} .swap-check:checked`
+  )].map(c => c.value);
+
+  if (ids.length !== 2) {
+    return alert("Select exactly 2 passengers to swap");
+  }
+
+  if (!confirm("Swap these two passengers?")) return;
+
+  const params = new URLSearchParams({
+    action: "swapAllocations",
+    allocationIdA: ids[0],
+    allocationIdB: ids[1]
+  });
+
+  fetch(API + "?" + params.toString())
+    .then(r => r.json())
+    .then(res => {
+      if (res.error) throw new Error(res.error);
+
+      allocationCache = {};
+      render();
+    })
+    .catch(err => alert(err.message));
+}
+
 
 function cancelAlloc(id) {
   if (!confirm("Cancel this allocation?")) return;
@@ -531,6 +629,31 @@ function cancelAlloc(id) {
     })
     .catch(e => alert(e.message));
 }
+
+function handleMove(allocationId, selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel.value) return alert("Select target vehicle");
+
+  const [vehicleClass, vehicleNo] = sel.value.split("|");
+
+  const params = new URLSearchParams({
+    action: "moveAllocation",
+    allocationId,
+    targetVehicleClass: vehicleClass,
+    targetVehicleNo: vehicleNo || ""
+  });
+
+  fetch(API + "?" + params.toString())
+    .then(r => r.json())
+    .then(res => {
+      if (res.error) throw new Error(res.error);
+
+      allocationCache = {};
+      render();
+    })
+    .catch(err => alert(err.message));
+}
+
 
 function editAlloc(id, current) {
   const n = prompt("Enter new pax count", current);
