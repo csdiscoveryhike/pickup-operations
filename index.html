@@ -473,7 +473,7 @@ ${b.status === "ALLOCATED" ? `
           👤 <b>${a.email}</b><br>
           Pax: ${a.pax}<br>
           🚐 ${a.vehicleClass} ${a.vehicleNo || ""}<br>
-          📍 ${a.pickupPoint || "—"} @ ${a.pickupTime || "—"}<br>
+          📍 ${a.pickupPoint || "—"} @ ${formatTime12h(a.pickupTime) || "—"}<br>
           👨‍✈️ ${a.driverName || "—"} (${a.driverPhone || "—"})
         </div>
 
