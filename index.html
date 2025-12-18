@@ -106,6 +106,23 @@ body.dark .batch-sub.passenger {
   padding-top: 4px;
 }
 
+/* ===== TOP LOADING BAR ===== */
+#topLoader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(
+    90deg,
+    #60a5fa,
+    #22c55e
+  );
+  box-shadow: 0 0 10px rgba(96,165,250,0.6);
+  transition: width 0.25s ease, opacity 0.4s ease;
+  z-index: 9999;
+  opacity: 0;
+}
 
 /* ===== LOGO SIZE LOCK ===== */
 .logo-top {
@@ -133,6 +150,7 @@ body.dark .batch-sub.passenger {
   display: block;
   height: 100%;
   border-radius: inherit;
+  transition: width 0.4s ease;
 }
 
 
@@ -293,6 +311,11 @@ body.dark select {
   }
 }
 
+.btn.loading {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
 /* ===== ASSIGNED VEHICLE CARD ===== */
 .vehicle-card {
   background: rgba(0,0,0,0.04);
@@ -326,10 +349,59 @@ body.dark .vehicle-meta {
   color: #9ca3af;
 }
 
+/* ===== SKELETON LOADER ===== */
+.skeleton {
+  position: relative;
+  height: 120px;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--border) 25%,
+    rgba(255,255,255,0.35) 37%,
+    var(--border) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 0 }
+  100% { background-position: -100% 0 }
+}
+
+/* Dark mode adjustment */
+body.dark .skeleton::after {
+  background: linear-gradient(
+    90deg,
+    #020617 25%,
+    rgba(255,255,255,0.08) 37%,
+    #020617 63%
+  );
+}
+
+.workspace {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.workspace.open {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 </style>
 </head>
 
 <body>
+  <div id="topLoader"></div>
+
 <div class="toggle" onclick="toggleDark()">🌙 / ☀️</div>
 
 <header class="header-gradient">
@@ -345,7 +417,12 @@ body.dark .vehicle-meta {
 
 
 <div class="container">
-  <div id="list">Loading pickup batches…</div>
+  <div id="list">
+  <div class="batch skeleton"></div>
+  <div class="batch skeleton"></div>
+  <div class="batch skeleton"></div>
+</div>
+
 </div>
 
 <script>
@@ -355,7 +432,36 @@ let batches = [];
 let vehicles = [];
 let assignmentsCache = {};
 let allocationCache = {};
+const loader = document.getElementById("topLoader");
+let loadingCount = 0;
+
+function startLoading() {
+  if (loadingCount === 0) {
+    loader.style.opacity = "1";
+    loader.style.width = "30%";
+  }
+  loadingCount++;
+}
+
+function endLoading() {
+  loadingCount = Math.max(loadingCount - 1, 0);
+
+  if (loadingCount === 0) {
+    loader.style.width = "100%";
+    setTimeout(() => {
+      loader.style.opacity = "0";
+      loader.style.width = "0%";
+    }, 400);
+  }
+}
+
+function safeEndLoading() {
+  try { endLoading(); } catch(e) {}
+}
+
 /* ---------- INITIAL LOAD ---------- */
+startLoading();
+
 Promise.all([
   fetch(API + "?action=batches").then(r => r.json()),
   fetch(API + "?action=vehicles").then(r => r.json())
@@ -364,11 +470,14 @@ Promise.all([
   batches = b;
   vehicles = v;
   render();
+  endLoading();
 })
 .catch(err => {
+  safeEndLoading();
   alert("Failed to load pickup data");
   console.error(err);
 });
+
 
 /* ---------- RENDER ---------- */
 function render() {
@@ -488,7 +597,7 @@ ${b.status === "ALLOCATED" ? `
   <h4>Passenger Allocation</h4>
 <div id="swap-bar-${b.batchId}" style="display:none;margin:6px 0">
   <button class="btn"
-    onclick="swapSelected('${b.batchId}')">
+  onclick="swapSelected('${b.batchId}', this)">
     🔁 Swap Selected Passengers
   </button>
 </div>
@@ -626,15 +735,23 @@ function toggleWorkspace(batchId) {
   const isOpen = ws.classList.contains("open");
 
   document.querySelectorAll(".workspace.open").forEach(el => {
+  el.style.opacity = "0";
+  el.style.transform = "translateY(6px)";
+  setTimeout(() => {
     el.classList.remove("open");
     el.innerHTML = "";
-  });
+  }, 200);
+});
+
 
   if (isOpen) return;
 
   ws.classList.add("open");
+// reset animation state BEFORE content load
+ws.style.opacity = "0";
+ws.style.transform = "translateY(6px)";
   ws.innerHTML = "<div class='batch-sub'>Loading data…</div>";
-
+  startLoading();
  const batch = batches.find(b => b.batchId === batchId);
  const shouldLoadAllocations =
   batch.status === "ALLOCATED";
@@ -660,8 +777,16 @@ Promise.all([
     ws.innerHTML = workspaceHTML(
       batches.find(b => b.batchId === batchId)
     );
+// trigger animation AFTER content is ready
+  requestAnimationFrame(() => {
+    ws.style.opacity = "1";
+    ws.style.transform = "translateY(0)";
+  });
+
+    endLoading();
   })
   .catch(err => {
+    safeEndLoading();
     console.error(err);
     ws.innerHTML = "<div class='batch-sub'>Failed to load batch data</div>";
   });
@@ -669,7 +794,10 @@ Promise.all([
 
 function allocatePassengers(batchId, btn) {
   if (!confirm("Allocate passengers now? This can only be done once.")) return;
-
+  
+  btn.classList.add("loading");
+startLoading(); 
+loader.style.width = "60%";
   btn.disabled = true;
   btn.innerText = "Allocating…";
 
@@ -685,8 +813,12 @@ function allocatePassengers(batchId, btn) {
       batches = b;
       render();
       requestAnimationFrame(() => toggleWorkspace(batchId));
+      btn.classList.remove("loading"); 
+      endLoading(); 
     })
     .catch(err => {
+      safeEndLoading();
+      btn.classList.remove("loading");
       alert(err.message);
       btn.disabled = false;
       btn.innerText = "👥 Allocate Passengers";
@@ -710,11 +842,14 @@ function formatTime12h(value) {
 
 /* ---------- SAVE ASSIGNMENT ---------- */
 function save(batchId, btn) {
+  btn.classList.add("loading");
   btn.disabled = true;
   btn.innerText = "Saving…";
-
+  startLoading(); 
   const vc = document.getElementById(`vc-${batchId}`).value;
   if (!vc) {
+    safeEndLoading();
+     btn.classList.remove("loading");
     btn.disabled = false;
     btn.innerText = "Save Assignment";
     return alert("Select vehicle class");
@@ -749,6 +884,7 @@ function save(batchId, btn) {
   allocationCache[batchId] = []; // reset safely
   batches = b;
 
+    btn.classList.remove("loading");
 
       btn.disabled = false;
       btn.innerText = "Save Assignment";
@@ -759,9 +895,12 @@ function save(batchId, btn) {
 requestAnimationFrame(() => {
   toggleWorkspace(batchId);
 });
+endLoading(); 
 
     })
     .catch(err => {
+     safeEndLoading();
+      btn.classList.remove("loading");  
       btn.disabled = false;
       btn.innerText = "Save Assignment";
       alert("Failed to save assignment: " + err.message);
@@ -771,7 +910,8 @@ requestAnimationFrame(() => {
   
 function lockVehicles(batchId, btn) {
   if (!confirm("Lock vehicles? You won’t be able to edit them later.")) return;
-
+  btn.classList.add("loading");
+startLoading();    
   btn.disabled = true;
   btn.innerText = "Locking…";
 
@@ -786,8 +926,12 @@ function lockVehicles(batchId, btn) {
       batches = b;
       render();
       setTimeout(() => toggleWorkspace(batchId), 0);
+      btn.classList.remove("loading"); 
+       endLoading();  
     })
     .catch(err => {
+       safeEndLoading();
+       btn.classList.remove("loading"); 
       alert(err.message);
       btn.disabled = false;
       btn.innerText = "🔒 Lock Vehicles";
@@ -803,17 +947,22 @@ function updateSwapBar(batchId) {
   bar.style.display = checks.length === 2 ? "block" : "none";
 }
 
-function swapSelected(batchId) {
-  const ids = [...document.querySelectorAll(
-    `#ws-${batchId} .swap-check:checked`
-  )].map(c => c.value);
+function swapSelected(batchId,btn) {
+ const ids = [...document.querySelectorAll(
+  `#ws-${batchId} .swap-check:checked`
+)].map(c => c.value);
 
-  if (ids.length !== 2) {
-    return alert("Select exactly 2 passengers to swap");
-  }
+if (ids.length !== 2) {
+  alert("Select exactly 2 passengers to swap");
+  return;
+}
 
-  if (!confirm("Swap these two passengers?")) return;
+if (!confirm("Swap these two passengers?")) return;
 
+btn.classList.add("loading");   // ✅ MOVE HERE
+
+  startLoading();  
+  loader.style.width = "60%";
   const params = new URLSearchParams({
     action: "swapAllocations",
     allocationIdA: ids[0],
@@ -827,8 +976,16 @@ function swapSelected(batchId) {
 
       allocationCache = {};
       render();
+      btn.classList.remove("loading");
+      setTimeout(endLoading, 200);
     })
-    .catch(err => alert(err.message));
+    .catch(err => {
+  safeEndLoading();
+   btn.classList.remove("loading"); 
+    // ✅ ADD THIS
+  alert(err.message);
+});
+
 }
 
 
