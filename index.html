@@ -7,35 +7,115 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
+/* ================= THEME VARIABLES ================= */
 :root {
-  --bg:#0f172a;
-  --card:#111827;
-  --border:#1f2937;
-  --text:#e5e7eb;
-  --muted:#9ca3af;
-  --primary:#2563eb;
-  --safe:#16a34a;
-  --warn:#f59e0b;
+  --primary: #00254d;
+  --accent: #004b99;
+  --danger: #c62828;
+
+  --bg: #f4f6f8;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --text: #333;
+  --muted: #666;
+
+  --safe: #16a34a;
+  --warn: #f59e0b;
 }
+
+/* DARK MODE */
+body.dark {
+  --bg: #0f172a;
+  --card: #111827;
+  --border: #1f2937;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+}
+
 
 * { box-sizing: border-box }
 
 body {
-  margin:0;
-  font-family: system-ui, sans-serif;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
-header {
-  padding:16px 20px;
-  border-bottom:1px solid var(--border);
-  background:#020617;
+/* Passenger row background */
+.batch-sub.passenger {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(0,0,0,0.03);
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 8px;
 }
 
-header h1 {
-  font-size:16px;
-  margin:0;
+body.dark .batch-sub.passenger {
+  background: rgba(255,255,255,0.04);
+}
+
+
+.header-gradient {
+  background: linear-gradient(135deg, #00254d, #004b99);
+  padding: 22px 20px 24px;
+  text-align: center;
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+}
+
+.header-gradient h1 {
+  margin: 0;
+  font-size: 18px;
+  color: #fff;
+}
+
+.header-gradient p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #d0e4ff;
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.logo {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+}
+
+/* Mobile adjustment */
+@media (max-width: 600px) {
+  .logo {
+    height: 30px;
+  }
+
+  .header-inner {
+    gap: 8px;
+  }
+}
+
+
+.toggle {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  background: var(--card);
+  border-radius: 50px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  z-index: 100;
 }
 
 .container {
@@ -45,12 +125,19 @@ header h1 {
 }
 
 .batch {
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:14px;
-  margin-bottom:14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  transition: box-shadow 0.2s ease;
 }
+
+body.dark .batch {
+  box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+}
+
 
 .batch-header {
   display:flex;
@@ -69,50 +156,64 @@ header h1 {
   color:var(--muted);
 }
 
-.status {
-  font-size:11px;
-  font-weight:700;
-  padding:4px 10px;
-  border-radius:999px;
-}
-
-.DRAFT { background:#334155; color:#e5e7eb }
-.VEHICLES_LOCKED { background:#fef3c7; color:#92400e }
-.ALLOCATED { background:#dcfce7; color:#166534 }
-.SENT { background:#bbf7d0; color:#065f46 }
-
-
 .progress {
-  height:8px;
-  border-radius:999px;
-  background:#020617;
-  margin-top:8px;
-  overflow:hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  margin-top: 8px;
+  overflow: hidden;
 }
 
-.progress span {
-  display:block;
-  height:100%;
-  background:linear-gradient(90deg,#2563eb,#22c55e);
+body.dark .progress {
+  background: #020617;
 }
+
 
 .actions {
   margin-top:10px;
 }
 
-button {
-  border:none;
-  border-radius:8px;
-  padding:8px 12px;
-  font-size:13px;
-  font-weight:600;
-  cursor:pointer;
+button,
+.btn {
+  background: linear-gradient(135deg, #00254d, #004b99);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
-.btn {
-  background:#1f2937;
+button:hover,
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+}
+
+button:active,
+.btn:active {
+  transform: scale(0.97);
+}
+
+.status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.DRAFT { background:#e5e7eb; color:#374151 }
+.VEHICLES_LOCKED { background:#fef3c7; color:#92400e }
+.ALLOCATED { background:#dcfce7; color:#166534 }
+.SENT { background:#bbf7d0; color:#065f46 }
+
+body.dark .DRAFT {
+  background:#334155;
   color:#e5e7eb;
 }
+
 
 .workspace {
   display:none;
@@ -129,16 +230,55 @@ button {
   font-size:12px;
   border-radius:10px;
 }
+input, select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  margin-top: 8px;
+  background: var(--card);
+  color: var(--text);
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,75,153,0.15);
+}
+
+body.dark input,
+body.dark select {
+  background: #020617;
+  border-color: #1f2937;
+  color: #e5e7eb;
+}
 
 .safe { background:#064e3b; color:#d1fae5 }
+
+@media (max-width: 600px) {
+  .batch-sub.passenger {
+    flex-direction: column;
+  }
+}
+
 </style>
 </head>
 
 <body>
+<div class="toggle" onclick="toggleDark()">🌙 / ☀️</div>
 
-<header>
-  <h1>Discovery Hike – Pickup Operations</h1>
+<header class="header-gradient">
+  <div class="header-inner">
+    <img src="https://i.imgur.com/40sl7Sv.png" alt="Discovery Hike" class="logo">
+    <div>
+      <h1>Discovery Hike – Pickup Operations</h1>
+      <p>Internal transport & allocation system</p>
+    </div>
+  </div>
 </header>
+
+
 
 <div class="container">
   <div id="list">Loading pickup batches…</div>
@@ -286,8 +426,9 @@ ${b.status === "ALLOCATED" ? `
 
   ${allocs.length
     ? allocs.map(a => `
-      <div class="batch-sub"
-        style="display:flex;justify-content:space-between;gap:10px">
+      <div class="batch-sub passenger">
+
+
         
         <div>
           ${editable ? `
@@ -681,6 +822,18 @@ function editAlloc(id, current) {
     })
     .catch(e => alert(e.message));
 }
+
+const storedTheme = localStorage.getItem("dh-theme");
+if (storedTheme === "dark") document.body.classList.add("dark");
+
+function toggleDark() {
+  document.body.classList.toggle("dark");
+  localStorage.setItem(
+    "dh-theme",
+    document.body.classList.contains("dark") ? "dark" : "light"
+  );
+}
+
 
     </script>
 
