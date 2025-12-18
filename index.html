@@ -327,7 +327,7 @@ ${b.status === "ALLOCATED" ? `
   <select id="mv-${a.id}">
     <option value="">Move to vehicle…</option>
     ${assigns.map(v => `
-      <option value="${v.vehicleClass}|${v.vehicleNo}">
+      <option value="${v.vehicleClass}|${v.vehicleNo || ""}"${v.vehicleClass === a.vehicleClass && v.vehicleNo === a.vehicleNo ? "disabled" : ""}>
         ${v.vehicleClass} ${v.vehicleNo || ""}
       </option>
     `).join("")}
@@ -632,15 +632,23 @@ function cancelAlloc(id) {
 
 function handleMove(allocationId, selectId) {
   const sel = document.getElementById(selectId);
-  if (!sel.value) return alert("Select target vehicle");
+  if (!sel || !sel.value) {
+    return alert("Select a target vehicle");
+  }
 
-  const [vehicleClass, vehicleNo] = sel.value.split("|");
+  const parts = sel.value.split("|");
+  const vehicleClass = (parts[0] || "").trim();
+  const vehicleNo = (parts[1] || "").trim();
+
+  if (!vehicleClass) {
+    return alert("Invalid target vehicle");
+  }
 
   const params = new URLSearchParams({
     action: "moveAllocation",
-    allocationId,
+    allocationId: allocationId,
     targetVehicleClass: vehicleClass,
-    targetVehicleNo: vehicleNo || ""
+    targetVehicleNo: vehicleNo
   });
 
   fetch(API + "?" + params.toString())
