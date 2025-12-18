@@ -293,6 +293,39 @@ body.dark select {
   }
 }
 
+/* ===== ASSIGNED VEHICLE CARD ===== */
+.vehicle-card {
+  background: rgba(0,0,0,0.04);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+body.dark .vehicle-card {
+  background: rgba(255,255,255,0.05);
+  border-color: #1f2937;
+}
+
+.vehicle-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vehicle-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+body.dark .vehicle-meta {
+  color: #9ca3af;
+}
+
 </style>
 </head>
 
@@ -396,14 +429,19 @@ function workspaceHTML(b) {
 
     ${assigns.length
       ? assigns.map(a => `
-        <div class="batch-sub">
-          🚐 <b>${a.vehicleClass}</b> (${a.assignedPax} pax)<br>
-          Vehicle No: ${a.vehicleNo || "—"}<br>
-          Driver: ${a.driverName || "—"} (${a.driverPhone || "—"})<br>
-          Pickup: ${a.pickupPoint || "—"} @ ${formatTime12h(a.pickupTime)}
+  <div class="vehicle-card">
+    <div class="vehicle-title">
+      🚐 ${a.vehicleClass} • ${a.assignedPax} pax
+    </div>
 
-        </div>
-      `).join("")
+    <div class="vehicle-meta">
+      <div><b>Vehicle:</b> ${a.vehicleNo || "—"}</div>
+      <div><b>Driver:</b> ${a.driverName || "—"} (${a.driverPhone || "—"})</div>
+      <div><b>Pickup:</b> ${a.pickupPoint || "—"} @ ${formatTime12h(a.pickupTime)}</div>
+    </div>
+  </div>
+`)
+.join("")
       : "<div class='batch-sub'>No vehicles assigned</div>"
     }
 
