@@ -327,9 +327,12 @@ ${b.status === "ALLOCATED" ? `
   <select id="mv-${a.id}" onchange="this.nextElementSibling.disabled = !this.value">
     <option value="">Move to vehicle…</option>
     ${assigns.map(v => `
-      <option value="${v.vehicleClass}|${v.vehicleNo || ""}"${v.vehicleClass === a.vehicleClass && v.vehicleNo === a.vehicleNo ? "disabled" : ""}>
-        ${v.vehicleClass} ${v.vehicleNo || ""}
-      </option>
+     <option 
+  data-class="${v.vehicleClass}" 
+  data-no="${v.vehicleNo || ""}">
+  ${v.vehicleClass} ${v.vehicleNo || ""}
+</option>
+
     `).join("")}
   </select>
 
@@ -632,35 +635,33 @@ function cancelAlloc(id) {
 
 function handleMove(allocationId, selectId) {
   const sel = document.getElementById(selectId);
-
-  // HARD guard
   if (!sel) {
-    return alert("Move dropdown not found. Please reopen the batch.");
+    return alert("Move dropdown not found. Reopen the batch.");
   }
 
-  const raw = sel.value;
-  if (!raw || raw.indexOf("|") === -1) {
-    return alert("Please select a valid target vehicle");
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.dataset.class) {
+    return alert("Please select a target vehicle");
   }
 
-  const [vehicleClass, vehicleNo = ""] = raw.split("|");
+  const targetVehicleClass = opt.dataset.class.trim();
+  const targetVehicleNo = (opt.dataset.no || "").trim();
 
-  if (!vehicleClass.trim()) {
-    return alert("Invalid target vehicle selected");
+  if (!targetVehicleClass) {
+    return alert("Invalid target vehicle");
   }
 
   const params = new URLSearchParams({
     action: "moveAllocation",
     allocationId,
-    targetVehicleClass: vehicleClass.trim(),
-    targetVehicleNo: vehicleNo.trim()
+    targetVehicleClass,
+    targetVehicleNo
   });
 
   fetch(API + "?" + params.toString())
     .then(r => r.json())
     .then(res => {
       if (res.error) throw new Error(res.error);
-
       allocationCache = {};
       render();
     })
