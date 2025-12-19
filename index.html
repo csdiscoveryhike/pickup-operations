@@ -63,8 +63,10 @@ body.dark .batch-sub.passenger {
 .header-wrap {
   display: flex;
   justify-content: center;
-  padding: 18px;
+  padding: 0;          /* ✅ REMOVE EXTRA SPACE */
+  margin-bottom: 26px; /* ✅ SAME AS ADMIN */
 }
+
 
 /* ===== HEADER CARD (ADMIN.html STYLE) ===== */
 .header-gradient {
@@ -76,7 +78,7 @@ body.dark .batch-sub.passenger {
   align-items: center;     /* ✅ CENTER EVERYTHING */
 
   background: linear-gradient(135deg, #00254d, #004b99);
-  padding: 28px 20px;   /* ✅ Admin.html vertical rhythm */
+  padding: 28px 18px 30px;   /* ✅ Admin.html vertical rhythm */
 
   border-radius: 18px;
   box-shadow: 0 10px 24px rgba(0,0,0,0.18);
@@ -123,6 +125,15 @@ body.dark .batch-sub.passenger {
   color: #ffffff;
 }
 
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 0;
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+}
 
 /* ===== TOP LOADING BAR ===== */
 #topLoader {
@@ -168,7 +179,7 @@ body.dark .batch-sub.passenger {
 .container {
   max-width:820px;
   margin:auto;
-  padding:16px;
+  padding:0 16px 16px;
 }
 
 .batch {
@@ -565,7 +576,9 @@ body.dark .card-icon {
 
   <!-- ================= ADMIN PANEL ================= -->
  <section id="admin-panel">
-  <h2 style="margin-bottom:14px">Pickup & Transport Operations Panel</h2>
+  <div class="section-title">
+  Pickup & Transport Operations Panel
+</div>
 
   <div class="admin-grid">
 
