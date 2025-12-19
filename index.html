@@ -21,6 +21,7 @@
 
   --safe: #16a34a;
   --warn: #f59e0b;
+  --tick-blue: #1DA1F2;
 }
 
 /* DARK MODE */
@@ -550,7 +551,7 @@ body.dark .card-icon {
 }
 
 .milestone.done {
-  color: #16a34a;
+ color: #16a34a;
 }
 
 .milestone.active {
@@ -565,7 +566,7 @@ body.dark .card-icon {
 }
 
 .milestone-line.done {
-  background: #16a34a;
+   background: var(--tick-blue);
 }
 
 
@@ -782,15 +783,13 @@ function render() {
   el.innerHTML = "";
 
   batches.forEach(b => {
-    const pct = b.totalPax
-      ? Math.min(100, Math.round((b.assignedCapacity / b.totalPax) * 100))
-      : 0;
 
-    const barColor =
-      b.assignedCapacity < b.totalPax ? "#f59e0b" : "#22c55e";
+    const fullyAssigned =
+      b.totalPax > 0 && b.assignedCapacity >= b.totalPax;
 
     el.innerHTML += `
       <div class="batch" id="batch-${domId(b.batchId)}">
+
         <div class="batch-header">
           <div>
             <div class="batch-title">${b.trekName}</div>
@@ -803,58 +802,65 @@ function render() {
           Pax: <b>${b.totalPax}</b> • Assigned: <b>${b.assignedCapacity}</b>
         </div>
 
+        <!-- ===== MILESTONES ===== -->
         <div class="milestones">
-  <div class="milestone ${b.status !== 'DRAFT' ? 'done' : 'active'}">
-    🧾 Created ${b.status !== 'DRAFT' ? '✅' : '❌'}
-  </div>
 
-  <div class="milestone-line ${b.status !== 'DRAFT' ? 'done' : ''}"></div>
+          <!-- 1️⃣ READY -->
+          <div class="milestone done">
+            🧾 Ready ✅
+          </div>
 
-  <div class="milestone ${
-    b.status === 'VEHICLES_LOCKED' || b.status === 'ALLOCATED' || b.status === 'SENT'
-      ? 'done'
-      : b.status === 'DRAFT'
-      ? ''
-      : 'active'
-  }">
-    🚐 Vehicles Locked ${
-      b.status === 'VEHICLES_LOCKED' || b.status === 'ALLOCATED' || b.status === 'SENT'
-        ? '✅'
-        : '❌'
-    }
-  </div>
+          <div class="milestone-line ${fullyAssigned ? 'done' : ''}"></div>
 
-  <div class="milestone-line ${
-    b.status === 'ALLOCATED' || b.status === 'SENT' ? 'done' : ''
-  }"></div>
+          <!-- 2️⃣ ASSIGNED (FULL ONLY) -->
+          <div class="milestone ${fullyAssigned ? 'done' : 'active'}">
+            🚐 Assigned ${fullyAssigned ? '✅' : '❌'}
+          </div>
 
-  <div class="milestone ${
-    b.status === 'ALLOCATED' || b.status === 'SENT'
-      ? 'done'
-      : b.status === 'VEHICLES_LOCKED'
-      ? 'active'
-      : ''
-  }">
-    👥 Allocated ${
-      b.status === 'ALLOCATED' || b.status === 'SENT'
-        ? '✅'
-        : '❌'
-    }
-  </div>
+          <div class="milestone-line ${
+            b.status !== 'DRAFT' ? 'done' : ''
+          }"></div>
 
-  <div class="milestone-line ${
-    b.status === 'SENT' ? 'done' : ''
-  }"></div>
+          <!-- 3️⃣ LOCKED -->
+          <div class="milestone ${
+            ['VEHICLES_LOCKED','ALLOCATED','SENT'].includes(b.status)
+              ? 'done'
+              : fullyAssigned ? 'active' : ''
+          }">
+            🔒 Locked ${
+              ['VEHICLES_LOCKED','ALLOCATED','SENT'].includes(b.status)
+                ? '✅' : '❌'
+            }
+          </div>
 
-  <div class="milestone ${b.status === 'SENT' ? 'done' : ''}">
-    📤 Sent ${b.status === 'SENT' ? '✅' : '❌'}
-  </div>
-</div>
+          <div class="milestone-line ${
+            ['ALLOCATED','SENT'].includes(b.status) ? 'done' : ''
+          }"></div>
 
+          <!-- 4️⃣ ALLOCATED -->
+          <div class="milestone ${
+            ['ALLOCATED','SENT'].includes(b.status)
+              ? 'done'
+              : b.status === 'VEHICLES_LOCKED' ? 'active' : ''
+          }">
+            👥 Allocated ${
+              ['ALLOCATED','SENT'].includes(b.status) ? '✅' : '❌'
+            }
+          </div>
+
+          <div class="milestone-line ${
+            b.status === 'SENT' ? 'done' : ''
+          }"></div>
+
+          <!-- 5️⃣ SENT -->
+          <div class="milestone ${b.status === 'SENT' ? 'done' : ''}">
+            📤 Sent ${b.status === 'SENT' ? '✅' : '❌'}
+          </div>
+
+        </div>
 
         <div class="actions">
-          <button class="btn" onclick="toggleWorkspace('${b.batchId}')"
->
+          <button class="btn" onclick="toggleWorkspace('${b.batchId}')">
             Manage Batch
           </button>
         </div>
@@ -864,14 +870,10 @@ function render() {
     `;
   });
 
-
-    // ✅ restore previously open workspace after re-render
+  /* restore open workspace */
   if (openBatchId) {
-    requestAnimationFrame(() => {
-      toggleWorkspace(openBatchId);
-    });
+    requestAnimationFrame(() => toggleWorkspace(openBatchId));
   }
-
 }
 
 /* ---------- WORKSPACE ---------- */
