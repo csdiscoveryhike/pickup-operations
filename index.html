@@ -521,6 +521,54 @@ body.dark .card-icon {
   line-height: 1.4;
 }
 
+/* ===== PAX PROGRESS ===== */
+.pax-progress {
+  margin: 10px 0 16px;
+}
+
+.pax-progress-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* ===== ALLOCATION MILESTONES ===== */
+.milestones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 16px;
+  font-size: 12px;
+}
+
+.milestone {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.milestone.done {
+  color: #16a34a;
+}
+
+.milestone.active {
+  color: #2563eb;
+}
+
+.milestone-line {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  margin: 0 8px;
+}
+
+.milestone-line.done {
+  background: #16a34a;
+}
+
+
 /* ================= FOOTER ================= */
 .footer {
   margin-top: 40px;
@@ -679,6 +727,7 @@ let assignmentsCache = {};
 let allocationCache = {};
 const loader = document.getElementById("topLoader");
 let loadingCount = 0;
+let openBatchId = null;
 
 function startLoading() {
   if (loadingCount === 0) {
@@ -741,7 +790,7 @@ function render() {
       b.assignedCapacity < b.totalPax ? "#f59e0b" : "#22c55e";
 
     el.innerHTML += `
-      <div class="batch" id="batch-${b.batchId}">
+      <div class="batch" id="batch-${domId(b.batchId)}">
         <div class="batch-header">
           <div>
             <div class="batch-title">${b.trekName}</div>
@@ -754,24 +803,80 @@ function render() {
           Pax: <b>${b.totalPax}</b> • Assigned: <b>${b.assignedCapacity}</b>
         </div>
 
-        <div class="progress">
-          <span style="width:${pct}%;background:${barColor}"></span>
-        </div>
+        <div class="milestones">
+  <div class="milestone ${b.status !== 'DRAFT' ? 'done' : 'active'}">
+    🧾 Created ${b.status !== 'DRAFT' ? '✅' : '❌'}
+  </div>
+
+  <div class="milestone-line ${b.status !== 'DRAFT' ? 'done' : ''}"></div>
+
+  <div class="milestone ${
+    b.status === 'VEHICLES_LOCKED' || b.status === 'ALLOCATED' || b.status === 'SENT'
+      ? 'done'
+      : b.status === 'DRAFT'
+      ? ''
+      : 'active'
+  }">
+    🚐 Vehicles Locked ${
+      b.status === 'VEHICLES_LOCKED' || b.status === 'ALLOCATED' || b.status === 'SENT'
+        ? '✅'
+        : '❌'
+    }
+  </div>
+
+  <div class="milestone-line ${
+    b.status === 'ALLOCATED' || b.status === 'SENT' ? 'done' : ''
+  }"></div>
+
+  <div class="milestone ${
+    b.status === 'ALLOCATED' || b.status === 'SENT'
+      ? 'done'
+      : b.status === 'VEHICLES_LOCKED'
+      ? 'active'
+      : ''
+  }">
+    👥 Allocated ${
+      b.status === 'ALLOCATED' || b.status === 'SENT'
+        ? '✅'
+        : '❌'
+    }
+  </div>
+
+  <div class="milestone-line ${
+    b.status === 'SENT' ? 'done' : ''
+  }"></div>
+
+  <div class="milestone ${b.status === 'SENT' ? 'done' : ''}">
+    📤 Sent ${b.status === 'SENT' ? '✅' : '❌'}
+  </div>
+</div>
+
 
         <div class="actions">
-          <button class="btn" onclick="toggleWorkspace('${b.batchId}')">
+          <button class="btn" onclick="toggleWorkspace('${b.batchId}')"
+>
             Manage Batch
           </button>
         </div>
 
-        <div class="workspace" id="ws-${b.batchId}"></div>
+        <div class="workspace" id="ws-${domId(b.batchId)}"></div>
       </div>
     `;
   });
+
+
+    // ✅ restore previously open workspace after re-render
+  if (openBatchId) {
+    requestAnimationFrame(() => {
+      toggleWorkspace(openBatchId);
+    });
+  }
+
 }
 
 /* ---------- WORKSPACE ---------- */
 function workspaceHTML(b) {
+  
   const assigns = (assignmentsCache[b.batchId] || [])
     .filter(a => a.status === "ACTIVE");
 
@@ -780,9 +885,26 @@ function workspaceHTML(b) {
 
   // 🔒 Vehicle lock (NOT email sent)
   const locked = b.status !== "DRAFT";
+  const pct = b.totalPax
+  ? Math.min(100, Math.round((b.assignedCapacity / b.totalPax) * 100))
+  : 0;
+
+const barColor =
+  b.assignedCapacity < b.totalPax ? "#f59e0b" : "#22c55e";
+
 
   return `
     <h4>Assigned Vehicles</h4>
+    <div class="pax-progress">
+  <div class="pax-progress-label">
+    Passenger assignment progress
+    (<b>${b.assignedCapacity}</b> / <b>${b.totalPax}</b> pax)
+  </div>
+
+  <div class="progress">
+    <span style="width:${pct}%;background:${barColor}"></span>
+  </div>
+</div>
 
     ${assigns.length
       ? assigns.map(a => `
@@ -804,7 +926,8 @@ function workspaceHTML(b) {
 
     ${b.status === "VEHICLES_LOCKED" ? `
   <div class="actions">
-    <button class="btn" onclick="allocatePassengers('${b.batchId}', this)">
+    <button class="btn" onclick="allocatePassengers('${b.batchId}', this)"
+>
       👥 Allocate Passengers
     </button>
   </div>
@@ -821,9 +944,6 @@ function workspaceHTML(b) {
           🔒 Lock Vehicles
         </button>
       </div>
-      <div class="note">
-        Lock vehicles before passenger allocation.
-      </div>
     ` : `
       ${b.status === "VEHICLES_LOCKED" ? `
   <div class="note safe">
@@ -833,17 +953,18 @@ function workspaceHTML(b) {
 
     `}
 
-    <hr style="border-color:#1f2937;margin:10px 0">
-${b.status === "ALLOCATED" ? `
+    ${b.status === "ALLOCATED" ? `
+  <hr style="border-color:#1f2937;margin:10px 0">
   <div class="note safe">
     Vehicles are locked. Passenger allocation completed.
   </div>
-` : ""}
+` : ``}
+
 
    ${b.status === "ALLOCATED"
  ? `
   <h4>Passenger Allocation</h4>
-<div id="swap-bar-${b.batchId}" style="display:none;margin:6px 0">
+<div id="swap-bar-${domId(b.batchId)}" style="display:none;margin:6px 0">
   <button class="btn"
   onclick="swapSelected('${b.batchId}', this)">
     🔁 Swap Selected Passengers
@@ -860,9 +981,9 @@ ${b.status === "ALLOCATED" ? `
           ${editable ? `
 <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
   <input type="checkbox"
-    class="swap-check"
-    value="${a.id}"
-    onchange="updateSwapBar('${b.batchId}')">
+  class="swap-check"
+  value="${a.id}"
+  onchange="updateSwapBar('${b.batchId}', this)">
   <label style="font-size:11px;color:#9ca3af">
     Select for swap
   </label>
@@ -916,22 +1037,21 @@ ${b.status === "ALLOCATED" ? `
     : "<div class='batch-sub'>No passengers allocated yet</div>"
   }
 ` : `
-  <div class="note">
-    Passenger allocation will appear after vehicles are locked.
-  </div>
 `}
 
 
-    <hr style="border-color:#1f2937;margin:10px 0">
+    ${b.status === "ALLOCATED" ? "" : `
+<hr style="border-color:#1f2937;margin:10px 0">
+`}
+<h4>Add Vehicle</h4>
 
-    <h4>Add Vehicle</h4>
 
     ${locked ? `
       <div class="note" style="background:#7c2d12;color:#fee2e2">
         Vehicles are locked. Cannot add or edit vehicles.
       </div>
     ` : `
-      <select id="vc-${b.batchId}">
+      <select id="vc-${domId(b.batchId)}">
         <option value="">Select vehicle</option>
         ${vehicles.map(v =>
           `<option value="${v.class}">
@@ -940,12 +1060,11 @@ ${b.status === "ALLOCATED" ? `
         ).join("")}
       </select>
 
-      <input placeholder="Vehicle Number" id="vn-${b.batchId}">
-      <input placeholder="Driver Name" id="dn-${b.batchId}">
-      <input placeholder="Driver Phone" id="dp-${b.batchId}">
-      <input placeholder="Pickup Point" id="pp-${b.batchId}">
-      <input type="time" id="pt-${b.batchId}">
-
+      <input placeholder="Vehicle Number" id="vn-${domId(b.batchId)}">
+      <input placeholder="Driver Name" id="dn-${domId(b.batchId)}">
+      <input placeholder="Driver Phone" id="dp-${domId(b.batchId)}">
+      <input placeholder="Pickup Point" id="pp-${domId(b.batchId)}">
+      <input type="time" id="pt-${domId(b.batchId)}">
       <div class="actions">
         <button class="btn" onclick="save('${b.batchId}', this)">
           Save Assignment
@@ -959,84 +1078,55 @@ ${b.status === "ALLOCATED" ? `
   `;
 }
 
-function swapAlloc(idA, idB) {
-  const params = new URLSearchParams({
-    action: "swapAllocations",
-    allocationIdA: idA,
-    allocationIdB: idB
-  });
-
-  fetch(API + "?" + params.toString())
-    .then(r => r.json())
-    .then(res => {
-      if (res.error) throw new Error(res.error);
-
-      allocationCache = {};
-      render();
-    })
-    .catch(err => alert(err.message));
-}
-
 /* ---------- TOGGLE ---------- */
 function toggleWorkspace(batchId) {
-  const ws = document.getElementById(`ws-${batchId}`);
+  const safeId = domId(batchId);
+  const ws = document.getElementById(`ws-${safeId}`);
+  if (!ws) return;
+
   const isOpen = ws.classList.contains("open");
 
+  // close all open workspaces
   document.querySelectorAll(".workspace.open").forEach(el => {
-  el.style.opacity = "0";
-  el.style.transform = "translateY(6px)";
-  setTimeout(() => {
     el.classList.remove("open");
     el.innerHTML = "";
-  }, 200);
-});
-
-
-  if (isOpen) return;
-
-  ws.classList.add("open");
-// reset animation state BEFORE content load
-ws.style.opacity = "0";
-ws.style.transform = "translateY(6px)";
-  ws.innerHTML = "<div class='batch-sub'>Loading data…</div>";
-  startLoading();
- const batch = batches.find(b => b.batchId === batchId);
- const shouldLoadAllocations =
-  batch.status === "ALLOCATED";
-
-
-Promise.all([
-  assignmentsCache[batchId]
-    ? Promise.resolve(assignmentsCache[batchId])
-    : fetch(API + "?action=assignments&batchId=" + encodeURIComponent(batchId))
-        .then(r => r.json())
-        .then(d => (assignmentsCache[batchId] = d)),
-
-  shouldLoadAllocations
-    ? (allocationCache[batchId]
-        ? Promise.resolve(allocationCache[batchId])
-        : fetch(API + "?action=allocations&batchId=" + encodeURIComponent(batchId))
-            .then(r => r.json())
-            .then(d => (allocationCache[batchId] = d)))
-    : Promise.resolve([])
-])
-
-  .then(() => {
-    ws.innerHTML = workspaceHTML(
-      batches.find(b => b.batchId === batchId)
-    );
-// trigger animation AFTER content is ready
-  requestAnimationFrame(() => {
-    ws.style.opacity = "1";
-    ws.style.transform = "translateY(0)";
   });
 
-    endLoading();
-  })
-  .catch(err => {
-    safeEndLoading();
-    console.error(err);
-    ws.innerHTML = "<div class='batch-sub'>Failed to load batch data</div>";
+  // ❌ user clicked to close → forget open batch
+  if (isOpen) {
+    openBatchId = null;   // ✅ IMPORTANT
+    return;
+  }
+
+  // ✅ user opened this batch → remember it
+  openBatchId = batchId;
+
+  ws.classList.add("open");
+  ws.innerHTML = "<div class='batch-sub'>Loading data…</div>";
+
+  const batch = batches.find(b => b.batchId === batchId);
+  if (!batch) return alert("Batch not found");
+
+  const shouldLoadAllocations =
+    ["ALLOCATED", "SENT"].includes(batch.status);
+
+  Promise.all([
+    assignmentsCache[batchId]
+      ? Promise.resolve(assignmentsCache[batchId])
+      : fetch(API + "?action=assignments&batchId=" + encodeURIComponent(batchId))
+          .then(r => r.json())
+          .then(d => (assignmentsCache[batchId] = d)),
+
+    shouldLoadAllocations
+      ? (allocationCache[batchId]
+          ? Promise.resolve(allocationCache[batchId])
+          : fetch(API + "?action=allocations&batchId=" + encodeURIComponent(batchId))
+              .then(r => r.json())
+              .then(d => (allocationCache[batchId] = d)))
+      : Promise.resolve([])
+  ])
+  .then(() => {
+    ws.innerHTML = workspaceHTML(batch);
   });
 }
 
@@ -1090,11 +1180,12 @@ function formatTime12h(value) {
 
 /* ---------- SAVE ASSIGNMENT ---------- */
 function save(batchId, btn) {
+  const safeId = domId(batchId);
   btn.classList.add("loading");
   btn.disabled = true;
   btn.innerText = "Saving…";
   startLoading(); 
-  const vc = document.getElementById(`vc-${batchId}`).value;
+  const vc = document.getElementById(`vc-${safeId}`).value;
   if (!vc) {
     safeEndLoading();
      btn.classList.remove("loading");
@@ -1107,11 +1198,11 @@ function save(batchId, btn) {
     action: "addAssignment",
     batchId: batchId,
     vehicleClass: vc,
-    vehicleNo: document.getElementById(`vn-${batchId}`).value || "",
-    driverName: document.getElementById(`dn-${batchId}`).value || "",
-    driverPhone: document.getElementById(`dp-${batchId}`).value || "",
-    pickupPoint: document.getElementById(`pp-${batchId}`).value || "",
-    pickupTime: document.getElementById(`pt-${batchId}`).value || ""
+   vehicleNo: document.getElementById(`vn-${safeId}`).value || "",
+    driverName: document.getElementById(`dn-${safeId}`).value || "",
+    driverPhone: document.getElementById(`dp-${safeId}`).value || "",
+    pickupPoint: document.getElementById(`pp-${safeId}`).value || "",
+    pickupTime: document.getElementById(`pt-${safeId}`).value || ""
   });
 
   fetch(API + "?" + params.toString())
@@ -1186,31 +1277,45 @@ startLoading();
     });
 }
 
-function updateSwapBar(batchId) {
-  const checks = document.querySelectorAll(
-    `#ws-${batchId} .swap-check:checked`
-  );
+function updateSwapBar(batchId, checkbox) {
+  const safeId = domId(batchId);
 
-  const bar = document.getElementById(`swap-bar-${batchId}`);
-  bar.style.display = checks.length === 2 ? "block" : "none";
+  const checks = [
+    ...document.querySelectorAll(`#ws-${safeId} .swap-check`)
+  ];
+
+  const checked = checks.filter(c => c.checked);
+
+  // prevent selecting more than 2
+  if (checked.length > 2) {
+    checkbox.checked = false;
+    alert("You can select only 2 passengers to swap");
+    return;
+  }
+
+  const bar = document.getElementById(`swap-bar-${safeId}`);
+  if (!bar) return;
+
+  bar.style.display = checked.length === 2 ? "block" : "none";
 }
 
-function swapSelected(batchId,btn) {
- const ids = [...document.querySelectorAll(
-  `#ws-${batchId} .swap-check:checked`
-)].map(c => c.value);
+function swapSelected(batchId, btn) {
+  const safeId = domId(batchId);
 
-if (ids.length !== 2) {
-  alert("Select exactly 2 passengers to swap");
-  return;
-}
+  const ids = [...document.querySelectorAll(
+    `#ws-${safeId} .swap-check:checked`
+  )].map(c => c.value);
 
-if (!confirm("Swap these two passengers?")) return;
+  if (ids.length !== 2) {
+    alert("Select exactly 2 passengers to swap");
+    return;
+  }
 
-btn.classList.add("loading");   // ✅ MOVE HERE
+  if (!confirm("Swap these two passengers?")) return;
 
-  startLoading();  
-  loader.style.width = "60%";
+  btn.classList.add("loading");
+  startLoading();
+
   const params = new URLSearchParams({
     action: "swapAllocations",
     allocationIdA: ids[0],
@@ -1221,19 +1326,20 @@ btn.classList.add("loading");   // ✅ MOVE HERE
     .then(r => r.json())
     .then(res => {
       if (res.error) throw new Error(res.error);
-
       allocationCache = {};
       render();
       btn.classList.remove("loading");
-      setTimeout(endLoading, 200);
+      endLoading();
     })
     .catch(err => {
-  safeEndLoading();
-   btn.classList.remove("loading"); 
-    // ✅ ADD THIS
-  alert(err.message);
-});
+      btn.classList.remove("loading");
+      safeEndLoading();
+      alert(err.message);
+    });
+}
 
+function domId(id) {
+  return id.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
 
